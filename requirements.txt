@@ -1,0 +1,9 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
+fastapi
+uvicorn
+pymupdf
+sentence-transformers
+faiss-cpu==1.12.0
+requests
+python-multipart
