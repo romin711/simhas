@@ -230,4 +230,4 @@ in civil and criminal penalties and will be prosecuted to the maximum extent
 possible under applicable law.
 
 For licensing inquiries or permissions beyond the scope above, contact:
-romin@example.com
+rominkevadiya@gmail.com
