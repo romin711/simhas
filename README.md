@@ -1,4 +1,4 @@
-# Simhas RAG Chatbot — Phase 2
+# Simhas 
 
 A persistent, source-aware Retrieval Augmented Generation (RAG) chatbot.
 Upload PDF documents and ask questions about them using semantic search and a local LLM.
