@@ -19,10 +19,14 @@ Question: {question}
 
 Answer:"""
 
-    response = requests.post(
-        OLLAMA_URL,
-        json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False},
-        timeout=300,
-    )
-    response.raise_for_status()
+    try:
+        response = requests.post(
+            OLLAMA_URL,
+            json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False},
+            timeout=300,
+        )
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        raise RuntimeError("Failed to contact the local LLM service.") from exc
+
     return response.json()["response"].strip()

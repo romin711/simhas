@@ -53,9 +53,10 @@ simhas/
 - **PDF Upload** — Extract and chunk text from any text-based PDF
 - **Semantic Search** — FAISS vector store with sentence-transformers embeddings
 - **Source-Aware Answers** — Every answer shows which file and page it came from
+- **Retrieval Confidence** — Responses include confidence and evidence metadata
 - **Persistent Storage** — Vector index and chunks survive server restarts
 - **Offline LLM** — Runs entirely locally via Ollama (no API keys needed)
-- **React Frontend** — Clean chat UI built with Vite + React
+- **React Frontend** — Clean chat UI built with Vite + React, with chat history cleared on page reload
 
 ## Prerequisites
 
@@ -150,26 +151,56 @@ Ask a question about uploaded documents.
   "sources": [
     { "text": "...chunk...", "source": "report.pdf", "page": 3 },
     { "text": "...chunk...", "source": "report.pdf", "page": 5 }
-  ]
+  ],
+  "meta": {
+    "top_score": 0.82,
+    "min_relevance_score": 0.2,
+    "used_chunks": 2,
+    "retrieved_chunks": 2,
+    "candidate_chunks": 12,
+    "rerank_applied": true,
+    "weak_evidence": false
+  }
 }
 ```
 
+Notes:
+- `meta.top_score` is the highest retrieval score before thresholding.
+- `meta.retrieved_chunks` is the number of chunks that passed the relevance threshold.
+- `meta.candidate_chunks` is the number of FAISS candidates considered before reranking.
+- `meta.weak_evidence` is true when no chunk passed the relevance threshold.
+
 ## Configuration
 
-All settings are in `app/core/config.py`:
+All settings are in `app/core/config.py` and can be overridden with environment variables:
 
-| Variable | Default | Description |
+| Environment variable | Default | Description |
 |---|---|---|
-| `EMBEDDING_MODEL` | `all-MiniLM-L6-v2` | Sentence-transformers model |
-| `OLLAMA_MODEL` | `tinyllama` | Ollama model name |
-| `TOP_K` | `3` | Number of chunks retrieved per query |
-| `CHUNK_SIZE` | `150` | Words per chunk |
-| `CHUNK_OVERLAP` | `50` | Overlapping words between chunks |
+| `SIMHAS_APP_TITLE` | `Simhas RAG Chatbot - Phase 2` | FastAPI app title |
+| `SIMHAS_DATA_DIR` | `data/` | Directory for persisted FAISS files |
+| `SIMHAS_EMBEDDING_MODEL` | `all-MiniLM-L6-v2` | Sentence-transformers model |
+| `SIMHAS_OLLAMA_URL` | `http://localhost:11434/api/generate` | Ollama generate endpoint |
+| `SIMHAS_OLLAMA_MODEL` | `tinyllama` | Ollama model name |
+| `SIMHAS_TOP_K` | `3` | Number of chunks retrieved per query |
+| `SIMHAS_RETRIEVAL_CANDIDATE_K` | `12` | Number of FAISS candidates before reranking |
+| `SIMHAS_CHUNK_SIZE` | `150` | Words per chunk |
+| `SIMHAS_CHUNK_OVERLAP` | `50` | Overlapping words between chunks |
+| `SIMHAS_MIN_RELEVANCE_SCORE` | `0.2` | Minimum chunk relevance to be used in answer generation |
+| `SIMHAS_RERANK_LEXICAL_WEIGHT` | `0.2` | Lexical overlap weight in hybrid rerank score (semantic weight is `1 - lexical`) |
 
-To change the LLM model:
+Example overrides:
 ```bash
-ollama pull mistral   # pull new model
-# then update OLLAMA_MODEL = "mistral" in config.py
+export SIMHAS_OLLAMA_MODEL="mistral"
+export SIMHAS_TOP_K="5"
+export SIMHAS_RETRIEVAL_CANDIDATE_K="16"
+export SIMHAS_CHUNK_SIZE="200"
+export SIMHAS_MIN_RELEVANCE_SCORE="0.45"
+export SIMHAS_RERANK_LEXICAL_WEIGHT="0.25"
+```
+
+To change the LLM model in Ollama, pull the model first:
+```bash
+ollama pull mistral
 ```
 
 ## How Persistence Works
@@ -181,6 +212,10 @@ On every `/upload`:
 On server startup:
 - Both files are loaded automatically
 - If files don't exist, server starts with an empty store (no errors)
+
+## UX Behavior
+
+- Chat history does not persist across browser reloads; the conversation starts fresh on refresh.
 
 ## Error Reference
 

@@ -71,6 +71,7 @@ This directly improves groundedness and source traceability.
 - Uses FAISS `IndexFlatL2` as an in-process vector index.
 - Embeddings are L2-normalized before insert/search.
 - Metadata (`text`, `source`, `page`) is stored separately in `chunks.pkl`.
+- Retrieval now keeps a candidate pool, reranks chunks with a lightweight lexical signal, and filters weak matches with a minimum relevance threshold.
 
 ### 3.4 Source-Grounded Answering
 - Retrieved chunks are passed into a strict prompt.
@@ -78,7 +79,7 @@ This directly improves groundedness and source traceability.
   - answer from provided context only,
   - short answer,
   - explicit fallback when context is insufficient.
-- API returns both answer and source chunks for explainability.
+- API returns answer, source chunks, and retrieval metadata for explainability and confidence display.
 
 ### 3.5 Local-First AI Inference
 - LLM generation uses Ollama over local HTTP.
@@ -105,11 +106,13 @@ This directly improves groundedness and source traceability.
 ## 4.2 Query Flow (`POST /query`)
 1. Reject if no indexed data exists.
 2. Embed question.
-3. Retrieve top-k similar chunks.
-4. If none found, return a safe no-result response.
-5. Build strict prompt from retrieved context.
-6. Call Ollama for final answer.
-7. Return answer + source chunks.
+3. Retrieve a larger candidate set from FAISS.
+4. Rerank candidates using a hybrid semantic + lexical score.
+5. Filter chunks below the minimum relevance threshold.
+6. If none pass the threshold, return a safe no-result response with weak-evidence metadata.
+7. Build strict prompt from the filtered context.
+8. Call Ollama for final answer.
+9. Return answer + source chunks + retrieval metadata.
 
 ## 5. Design Patterns and Engineering Practices Observed
 
@@ -142,7 +145,8 @@ It intentionally trades distributed scalability for simplicity and local reliabi
 
 ### Retrieval Quality
 - Fixed-size word chunking is simple but not semantic; section/heading-aware chunking could improve results.
-- No reranking stage; nearest-neighbor only.
+- Reranking is lightweight and heuristic; it improves precision but is still not a learned reranker.
+- Thresholding can suppress weak evidence, which is helpful for trust but can increase fallback responses.
 
 ### Robustness
 - LLM service relies on Ollama availability and model health.
@@ -150,6 +154,9 @@ It intentionally trades distributed scalability for simplicity and local reliabi
 
 ### Security
 - CORS is fully open (`allow_origins=["*"]`), acceptable for dev but risky for hardened deployments.
+
+### UX State
+- Chat history is intentionally cleared on browser reload so users always start from a clean conversation.
 
 ## 8. If You Want to Describe It in One Line
 

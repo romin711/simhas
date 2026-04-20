@@ -45,8 +45,8 @@ flowchart TD
 | PDF processing | [app/services/pdf_service.py](app/services/pdf_service.py), [app/utils/chunking.py](app/utils/chunking.py) | Extract text from PDFs and split it into page-aware chunks |
 | Embeddings and retrieval | [app/services/embedding_service.py](app/services/embedding_service.py), [app/services/retrieval_service.py](app/services/retrieval_service.py) | Convert text to vectors and retrieve the most relevant chunks |
 | Storage | [app/db/vector_store.py](app/db/vector_store.py) | Persist and search the FAISS index plus chunk metadata |
-| LLM generation | [app/services/llm_service.py](app/services/llm_service.py) | Send retrieved context to Ollama and produce the final answer |
-| Frontend | [frontend/src/App.jsx](frontend/src/App.jsx), [frontend/src/components/Upload.jsx](frontend/src/components/Upload.jsx), [frontend/src/components/Chat.jsx](frontend/src/components/Chat.jsx), [frontend/src/components/Message.jsx](frontend/src/components/Message.jsx), [frontend/src/api.js](frontend/src/api.js) | Let users upload PDFs, ask questions, and inspect source-backed answers |
+| LLM generation | [app/services/llm_service.py](app/services/llm_service.py) | Send filtered retrieved context to Ollama and produce the final answer |
+| Frontend | [frontend/src/App.jsx](frontend/src/App.jsx), [frontend/src/components/Upload.jsx](frontend/src/components/Upload.jsx), [frontend/src/components/Chat.jsx](frontend/src/components/Chat.jsx), [frontend/src/components/Message.jsx](frontend/src/components/Message.jsx), [frontend/src/api.js](frontend/src/api.js) | Let users upload PDFs, ask questions, and inspect source-backed answers with confidence metadata |
 
 ### How the components interact
 
@@ -75,10 +75,11 @@ sequenceDiagram
   API->>Store: is_empty() / search path
   API->>Emb: embed_query()
   API->>Store: search(query vector)
-  Store-->>API: top chunks
-  API->>LLM: generate_answer(question, chunks)
+  Store-->>API: candidate chunks + scores
+  API->>API: rerank + threshold
+  API->>LLM: generate_answer(question, filtered chunks)
   LLM-->>API: grounded answer
-  API-->>UI: answer + sources
+  API-->>UI: answer + sources + meta
 ```
 
 ## 3. Core Concepts & Theory
@@ -99,7 +100,7 @@ How it works:
 5. The LLM receives only those chunks as context and answers from them.
 
 Technical depth:
-This codebase uses a classic two-stage RAG pattern. The retriever is semantic search over FAISS; the generator is a local Ollama model. The prompt explicitly limits the answer to the supplied context and caps it at three sentences.
+This codebase uses a retrieval-first RAG pattern with lightweight reranking. The retriever starts with FAISS similarity search, reranks candidates using a hybrid semantic + lexical score, and then filters by minimum relevance before generation. The generator is a local Ollama model, and the prompt explicitly limits the answer to the supplied context and caps it at three sentences.
 
 ### Embeddings
 
@@ -125,7 +126,7 @@ It is fast, simple, and good enough for an MVP search layer over a moderate docu
 How it works:
 - [app/db/vector_store.py](app/db/vector_store.py) stores the embeddings in a FAISS IndexFlatL2 index.
 - Vectors are normalized before search, which makes L2 distance behave like cosine-style similarity in practice.
-- The retrieval service requests the top K chunks, where K is configured in [app/core/config.py](app/core/config.py).
+- The retrieval service first fetches a larger candidate set, reranks it, and then keeps only the best chunks above the minimum relevance threshold.
 
 ### Chunking
 
@@ -207,7 +208,8 @@ Defines the request and response models for the API.
 Models:
 - QueryRequest: contains the user question.
 - SourceChunk: represents one retrieved source snippet with text, source file, and page.
-- QueryResponse: contains the generated answer and a list of source chunks.
+- QueryMeta: contains retrieval confidence metadata (scores, candidate counts, and weak-evidence flag).
+- QueryResponse: contains the generated answer, a list of source chunks, and query metadata.
 - UploadResponse: returns upload status and the number of chunks stored.
 
 Why it matters:
@@ -228,9 +230,9 @@ Upload flow:
 
 Query flow:
 - Rejects the request if no documents have been uploaded yet.
-- Calls retrieve() to find the most relevant chunks.
-- If nothing relevant is found, returns a fallback answer with no sources.
-- Otherwise generates a grounded answer and returns it with source metadata.
+- Calls retrieve() to fetch candidates, rerank, and apply the relevance threshold.
+- If nothing relevant is found, returns a fallback answer with weak-evidence metadata.
+- Otherwise generates a grounded answer and returns it with source and confidence metadata.
 
 Important decisions:
 - The route layer coordinates services but does not own business logic.
@@ -369,6 +371,7 @@ Key behavior:
 - Appends the user question immediately before the network call completes.
 - Appends the assistant answer when the backend returns.
 - Auto-scrolls to the newest message.
+- Starts with a clean history after browser reload (no persisted chat state).
 
 Why it matters:
 This component is the frontend state machine for the conversation. It controls loading, error handling, and message flow.
@@ -402,11 +405,12 @@ flowchart LR
 
   Q[User asks question] --> R2[POST /query]
   R2 --> E[Question embedding]
-  E --> F[Vector search top K]
-  F --> G[Retrieved chunks]
+  E --> F[Vector search candidates]
+  F --> H[Rerank + threshold]
+  H --> G[Filtered chunks]
   G --> P[Strict Ollama prompt]
   P --> A[Short answer]
-  A --> V[Frontend renders answer + sources]
+  A --> V[Frontend renders answer + sources + confidence]
 ```
 
 Step-by-step explanation:
@@ -417,16 +421,18 @@ Step-by-step explanation:
 5. Each chunk is converted into an embedding vector.
 6. The vectors and metadata are written to FAISS plus a pickle file.
 7. When the user asks a question, the query is embedded using the same model.
-8. FAISS returns the nearest chunks.
-9. Those chunks become the context for the Ollama prompt.
-10. The LLM returns a short answer.
-11. The API returns the answer and the retrieved source snippets.
-12. The frontend renders the answer and exposes the evidence trail.
+8. FAISS returns a candidate set, then retrieval reranks and thresholds before generation.
+
+## 6. Current State Summary
+
+- Retrieval: candidate search, hybrid reranking, and minimum relevance thresholding are active.
+- Responses: `/query` returns `answer`, `sources`, and `meta` for confidence UX.
+- Frontend: source-aware chat UI with confidence chips and weak-evidence warning, plus reset-on-reload chat history behavior.
 
 Key implementation detail:
 The system does not perform generation first and then search. Search happens first, and generation is constrained by retrieval results.
 
-## 6. Key Functionalities
+## 7. Key Functionalities
 
 ### PDF upload and indexing
 
@@ -479,7 +485,7 @@ How it works internally:
 - [frontend/src/components/Upload.jsx](frontend/src/components/Upload.jsx) handles uploads.
 - [frontend/src/components/Chat.jsx](frontend/src/components/Chat.jsx) handles questions.
 
-## 7. Algorithms / Models Used
+## 8. Algorithms / Models Used
 
 ### Sentence Transformers: all-MiniLM-L6-v2
 
@@ -513,7 +519,7 @@ Strengths:
 Limitations:
 - Linear scan behavior does not scale well to very large corpora.
 - No built-in filtering, metadata indexing, or hybrid retrieval.
-- No approximate search acceleration.
+- No built-in approximate search acceleration.
 
 ### Ollama with tinyllama
 
@@ -547,7 +553,7 @@ Limitations:
 - Chunk boundaries can cut across headings or table structures.
 - Overlap increases the total number of chunks and therefore the storage and retrieval cost.
 
-## 8. Tech Stack Justification
+## 9. Tech Stack Justification
 
 | Technology | Why it was chosen |
 |---|---|
@@ -563,7 +569,7 @@ Limitations:
 
 The stack is coherent because every layer supports the same product goal: local, source-aware question answering with minimal infrastructure.
 
-## 9. Strengths of the Project
+## 10. Strengths of the Project
 
 - Clear separation between ingestion, retrieval, generation, and presentation.
 - Strong source grounding: answers are backed by visible snippets and page numbers.
@@ -571,8 +577,9 @@ The stack is coherent because every layer supports the same product goal: local,
 - Persistent storage makes the app useful across sessions without re-uploading documents.
 - Small codebase is easy to understand and extend.
 - The API surface is tiny and easy to test or integrate with another frontend.
+- Basic automated backend tests are present for routes, chunking, and retrieval behavior.
 
-## 10. Weaknesses / Improvements
+## 11. Weaknesses / Improvements
 
 Be brutally honest, the current design is an MVP rather than a production system.
 
@@ -581,25 +588,24 @@ Main weaknesses:
 - CORS is open to all origins.
 - Pickle-based metadata persistence is not safe for concurrent writes and is fragile across code changes.
 - FAISS IndexFlatL2 does not scale well for very large datasets.
-- Retrieval is pure vector search with no keyword fallback or hybrid ranking.
-- There is no reranker to improve precision.
+- Retrieval still lacks a proper learned reranker (current reranking is lightweight and heuristic).
+- There is no keyword fallback stage; retrieval remains embedding-first.
 - The system does not support conversations with memory or follow-up context.
-- The frontend is functional but visually plain and not polished.
-- There are no visible automated tests in the repository.
+- Frontend uses inline styles, which can reduce long-term maintainability.
 - Error handling is minimal and mostly synchronous.
 
 Useful improvements:
 - Replace pickle with a real metadata store such as SQLite or PostgreSQL.
 - Add hybrid retrieval, combining vector search with keyword search.
-- Add a reranking layer for better answer precision.
+- Upgrade the current lightweight reranking to a model-based reranker for better precision.
 - Add OCR for scanned PDFs.
 - Add authentication and request limits.
 - Add background jobs for large uploads.
 - Add observability: logs, metrics, and request tracing.
-- Improve the frontend styling and loading states.
+- Move from inline styling to a structured styling approach for easier maintenance.
 - Make chunk parameters and retrieval top K user-configurable.
 
-## 11. Real-World Scalability
+## 12. Real-World Scalability
 
 How the current system behaves at scale:
 - For a small number of PDFs, it will feel responsive and simple.
@@ -621,7 +627,7 @@ What would be required for production:
 Practical scaling note:
 The biggest bottlenecks are not just model quality. They are persistence, ingestion latency, and search complexity.
 
-## 12. Glossary
+## 13. Glossary
 
 | Term | Simple meaning |
 |---|---|

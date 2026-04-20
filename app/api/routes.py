@@ -3,7 +3,7 @@ import tempfile
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
-from app.api.schemas import QueryRequest, QueryResponse, SourceChunk, UploadResponse
+from app.api.schemas import QueryMeta, QueryRequest, QueryResponse, SourceChunk, UploadResponse
 from app.db.vector_store import vector_store
 from app.services.embedding_service import embed_chunks
 from app.services.llm_service import generate_answer
@@ -42,16 +42,21 @@ def query(req: QueryRequest):
     if vector_store.is_empty():
         raise HTTPException(status_code=400, detail="No documents uploaded yet.")
 
-    top_chunks = retrieve(req.question)
+    retrieval = retrieve(req.question)
+    top_chunks = retrieval["chunks"]
+    meta = QueryMeta(**retrieval["meta"])
 
     if not top_chunks:
-        return QueryResponse(answer="No relevant information found.", sources=[])
+        return QueryResponse(answer="No relevant information found.", sources=[], meta=meta)
 
-    answer = generate_answer(req.question, top_chunks)
+    try:
+        answer = generate_answer(req.question, top_chunks)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail="LLM service unavailable.") from exc
 
     sources = [
         SourceChunk(text=c["text"], source=c["source"], page=c["page"])
         for c in top_chunks
     ]
 
-    return QueryResponse(answer=answer, sources=sources)
+    return QueryResponse(answer=answer, sources=sources, meta=meta)

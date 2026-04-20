@@ -2,9 +2,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import router
+from app.core.config import APP_TITLE
 from app.core.startup import startup
 
-app = FastAPI(title="Simhas RAG Chatbot - Phase 2")
+app = FastAPI(title=APP_TITLE)
 
 app.add_middleware(
     CORSMiddleware,
