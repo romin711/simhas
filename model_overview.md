@@ -46,7 +46,7 @@ flowchart TD
 | Embeddings and retrieval | [app/services/embedding_service.py](app/services/embedding_service.py), [app/services/retrieval_service.py](app/services/retrieval_service.py) | Convert text to vectors and retrieve the most relevant chunks |
 | Storage | [app/db/vector_store.py](app/db/vector_store.py) | Persist and search the FAISS index plus chunk metadata |
 | LLM generation | [app/services/llm_service.py](app/services/llm_service.py) | Send retrieved context to Ollama and produce the final answer |
-| Frontend | [frontend/src/App.js](frontend/src/App.js), [frontend/src/components/Upload.js](frontend/src/components/Upload.js), [frontend/src/components/Chat.js](frontend/src/components/Chat.js), [frontend/src/components/Message.js](frontend/src/components/Message.js), [frontend/src/api.js](frontend/src/api.js) | Let users upload PDFs, ask questions, and inspect source-backed answers |
+| Frontend | [frontend/src/App.jsx](frontend/src/App.jsx), [frontend/src/components/Upload.jsx](frontend/src/components/Upload.jsx), [frontend/src/components/Chat.jsx](frontend/src/components/Chat.jsx), [frontend/src/components/Message.jsx](frontend/src/components/Message.jsx), [frontend/src/api.js](frontend/src/api.js) | Let users upload PDFs, ask questions, and inspect source-backed answers |
 
 ### How the components interact
 
@@ -335,7 +335,7 @@ Key behavior:
 Why it matters:
 This isolates transport details from the UI components.
 
-### [frontend/src/App.js](frontend/src/App.js)
+### [frontend/src/App.jsx](frontend/src/App.jsx)
 
 Purpose:
 Defines the page structure and composes the upload and chat components.
@@ -348,7 +348,7 @@ Key behavior:
 Design note:
 The frontend currently uses inline styles instead of a dedicated styling system. That keeps the app small, but it limits visual sophistication and maintainability.
 
-### [frontend/src/components/Upload.js](frontend/src/components/Upload.js)
+### [frontend/src/components/Upload.jsx](frontend/src/components/Upload.jsx)
 
 Purpose:
 Lets the user select and upload a PDF.
@@ -358,7 +358,7 @@ Key behavior:
 - Disables upload while the request is in flight.
 - Shows success or error feedback after completion.
 
-### [frontend/src/components/Chat.js](frontend/src/components/Chat.js)
+### [frontend/src/components/Chat.jsx](frontend/src/components/Chat.jsx)
 
 Purpose:
 Implements the interactive Q and A experience.
@@ -373,7 +373,7 @@ Key behavior:
 Why it matters:
 This component is the frontend state machine for the conversation. It controls loading, error handling, and message flow.
 
-### [frontend/src/components/Message.js](frontend/src/components/Message.js)
+### [frontend/src/components/Message.jsx](frontend/src/components/Message.jsx)
 
 Purpose:
 Renders user and assistant messages.
@@ -458,7 +458,7 @@ Displays the text snippet, source file, and page number for each supporting chun
 How it works internally:
 - Metadata is attached when chunks are created.
 - The retrieval API returns these chunks alongside the answer.
-- [frontend/src/components/Message.js](frontend/src/components/Message.js) renders them.
+- [frontend/src/components/Message.jsx](frontend/src/components/Message.jsx) renders them.
 
 ### Persistence across restarts
 
@@ -475,9 +475,9 @@ What it does:
 Provides a simple upload-and-ask workflow.
 
 How it works internally:
-- [frontend/src/App.js](frontend/src/App.js) composes the page.
-- [frontend/src/components/Upload.js](frontend/src/components/Upload.js) handles uploads.
-- [frontend/src/components/Chat.js](frontend/src/components/Chat.js) handles questions.
+- [frontend/src/App.jsx](frontend/src/App.jsx) composes the page.
+- [frontend/src/components/Upload.jsx](frontend/src/components/Upload.jsx) handles uploads.
+- [frontend/src/components/Chat.jsx](frontend/src/components/Chat.jsx) handles questions.
 
 ## 7. Algorithms / Models Used
 
