@@ -23,6 +23,21 @@ def _lexical_overlap_score(question_terms: set[str], chunk_text: str) -> float:
     return len(question_terms.intersection(chunk_terms)) / len(question_terms)
 
 
+def _is_near_duplicate(candidate: dict, selected: list[dict]) -> bool:
+    candidate_terms = _tokenize(candidate["text"])
+    for existing in selected:
+        # Avoid repeatedly returning the same page passage when overlap windows are very similar.
+        if candidate["source"] == existing["source"] and candidate["page"] == existing["page"]:
+            existing_terms = _tokenize(existing["text"])
+            if not candidate_terms or not existing_terms:
+                continue
+            overlap = len(candidate_terms.intersection(existing_terms))
+            smaller = min(len(candidate_terms), len(existing_terms))
+            if smaller > 0 and (overlap / smaller) >= 0.85:
+                return True
+    return False
+
+
 def _hybrid_rerank(question: str, scored_chunks: list[dict]) -> list[dict]:
     question_terms = _tokenize(question)
     lexical_weight = max(0.0, min(1.0, RERANK_LEXICAL_WEIGHT))
@@ -59,7 +74,15 @@ def retrieve(question: str) -> dict:
 
     top_score = max(c["score"] for c in scored_chunks)
     reranked_chunks = _hybrid_rerank(question, scored_chunks)
-    passed_chunks = [c for c in reranked_chunks if c["score"] >= MIN_RELEVANCE_SCORE][:TOP_K]
+    thresholded_chunks = [c for c in reranked_chunks if c["score"] >= MIN_RELEVANCE_SCORE]
+
+    passed_chunks = []
+    for chunk in thresholded_chunks:
+        if _is_near_duplicate(chunk, passed_chunks):
+            continue
+        passed_chunks.append(chunk)
+        if len(passed_chunks) >= TOP_K:
+            break
 
     chunks = [
         {"text": c["text"], "source": c["source"], "page": c["page"]}
@@ -72,7 +95,7 @@ def retrieve(question: str) -> dict:
             "top_score": top_score,
             "min_relevance_score": MIN_RELEVANCE_SCORE,
             "used_chunks": len(chunks),
-            "retrieved_chunks": len(passed_chunks),
+            "retrieved_chunks": len(thresholded_chunks),
             "candidate_chunks": len(scored_chunks),
             "rerank_applied": True,
             "weak_evidence": len(chunks) == 0,

@@ -62,6 +62,43 @@ class RetrievalServiceTestCase(unittest.TestCase):
         self.assertEqual(len(result["chunks"]), 1)
         self.assertEqual(result["chunks"][0]["page"], 2)
 
+    def test_retrieve_suppresses_near_duplicate_chunks(self):
+        scored_chunks = [
+            {
+                "text": "Textsynth and ForeFrontAI details are summarized in table one. FrugalGPT evaluated on HEADLINES OVERRULING COQA.",
+                "source": "FrugalGPT.pdf",
+                "page": 6,
+                "score": 0.9,
+            },
+            {
+                "text": "Textsynth and ForeFrontAI details are summarized in table one. FrugalGPT evaluated on HEADLINES OVERRULING COQA dataset.",
+                "source": "FrugalGPT.pdf",
+                "page": 6,
+                "score": 0.89,
+            },
+            {
+                "text": "The paper proposes an LLM cascade to reduce query cost while preserving quality.",
+                "source": "FrugalGPT.pdf",
+                "page": 7,
+                "score": 0.82,
+            },
+        ]
+
+        with patch("app.services.retrieval_service.embed_query", return_value=np.array([0.1, 0.2], dtype="float32")), patch(
+            "app.services.retrieval_service.vector_store.search_with_scores", return_value=scored_chunks
+        ), patch("app.services.retrieval_service.MIN_RELEVANCE_SCORE", 0.2), patch(
+            "app.services.retrieval_service.TOP_K", 3
+        ), patch("app.services.retrieval_service.RETRIEVAL_CANDIDATE_K", 3), patch(
+            "app.services.retrieval_service.RERANK_LEXICAL_WEIGHT", 0.2
+        ):
+            result = retrieval_service.retrieve("What does FrugalGPT evaluate on?")
+
+        self.assertEqual(len(result["chunks"]), 2)
+        self.assertEqual(result["chunks"][0]["page"], 6)
+        self.assertEqual(result["chunks"][1]["page"], 7)
+        # retrieved_chunks reports threshold-pass candidates before diversity suppression.
+        self.assertEqual(result["meta"]["retrieved_chunks"], 3)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -56,7 +56,7 @@ simhas/
 - **Retrieval Confidence** — Responses include confidence and evidence metadata
 - **Persistent Storage** — Vector index and chunks survive server restarts
 - **Offline LLM** — Runs entirely locally via Ollama (no API keys needed)
-- **React Frontend** — Clean chat UI built with Vite + React, with chat history cleared on page reload
+- **React Frontend** — Clean chat UI built with Vite + React, with chat history preserved for the current browser session
 
 ## Prerequisites
 
@@ -119,7 +119,7 @@ API docs at: `http://127.0.0.1:8000/docs`
 cd simhas/frontend
 npm start
 ```
-Frontend runs at: `http://localhost:5173`
+Frontend runs at the Vite dev server URL shown in the terminal
 
 ## API Reference
 
@@ -169,6 +169,7 @@ Notes:
 - `meta.retrieved_chunks` is the number of chunks that passed the relevance threshold.
 - `meta.candidate_chunks` is the number of FAISS candidates considered before reranking.
 - `meta.weak_evidence` is true when no chunk passed the relevance threshold.
+- Retrieved sources are filtered to avoid showing near-duplicate passages from the same page.
 
 ## Configuration
 
@@ -215,7 +216,17 @@ On server startup:
 
 ## UX Behavior
 
-- Chat history does not persist across browser reloads; the conversation starts fresh on refresh.
+- Chat history persists across browser reloads within the same browser session and resets when the session ends.
+
+## Evaluation
+
+Use the built-in evaluation harness to measure retrieval quality against a small question set:
+
+```bash
+python -m app.services.evaluation_service tests/fixtures/eval_cases.json
+```
+
+The output includes source-match rate, weak-evidence rate, and average retrieval scores.
 
 ## Error Reference
 

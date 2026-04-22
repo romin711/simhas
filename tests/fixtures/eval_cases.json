@@ -1,0 +1,14 @@
+[
+  {
+    "question": "What are the installation prerequisites?",
+    "expected_source": "README.md"
+  },
+  {
+    "question": "How are uploaded PDFs stored after indexing?",
+    "expected_source": "README.md"
+  },
+  {
+    "question": "What does the retrieval meta include?",
+    "expected_source": "README.md"
+  }
+]

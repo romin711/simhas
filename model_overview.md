@@ -126,7 +126,7 @@ It is fast, simple, and good enough for an MVP search layer over a moderate docu
 How it works:
 - [app/db/vector_store.py](app/db/vector_store.py) stores the embeddings in a FAISS IndexFlatL2 index.
 - Vectors are normalized before search, which makes L2 distance behave like cosine-style similarity in practice.
-- The retrieval service first fetches a larger candidate set, reranks it, and then keeps only the best chunks above the minimum relevance threshold.
+- The retrieval service first fetches a larger candidate set, reranks it, suppresses near-duplicate passages from the same page, and then keeps only the best chunks above the minimum relevance threshold.
 
 ### Chunking
 
@@ -371,7 +371,7 @@ Key behavior:
 - Appends the user question immediately before the network call completes.
 - Appends the assistant answer when the backend returns.
 - Auto-scrolls to the newest message.
-- Starts with a clean history after browser reload (no persisted chat state).
+- Persists chat history for the current browser session using sessionStorage.
 
 Why it matters:
 This component is the frontend state machine for the conversation. It controls loading, error handling, and message flow.
@@ -425,9 +425,23 @@ Step-by-step explanation:
 
 ## 6. Current State Summary
 
-- Retrieval: candidate search, hybrid reranking, and minimum relevance thresholding are active.
+- Retrieval: candidate search, hybrid reranking, minimum relevance thresholding, and duplicate suppression are active.
 - Responses: `/query` returns `answer`, `sources`, and `meta` for confidence UX.
-- Frontend: source-aware chat UI with confidence chips and weak-evidence warning, plus reset-on-reload chat history behavior.
+- Frontend: source-aware chat UI with confidence chips, weak-evidence warning, and session-persistent chat history.
+
+## 6.1 Evaluation and Tuning
+
+The repository includes a lightweight evaluation harness at [app/services/evaluation_service.py](app/services/evaluation_service.py) with sample cases in [tests/fixtures/eval_cases.json](tests/fixtures/eval_cases.json).
+
+Use it to compare retrieval behavior after changing chunk size, overlap, reranking weights, or relevance thresholds.
+
+Run it with:
+
+```bash
+python -m app.services.evaluation_service tests/fixtures/eval_cases.json
+```
+
+The summary reports source-match rate, weak-evidence rate, and average retrieval scores.
 
 Key implementation detail:
 The system does not perform generation first and then search. Search happens first, and generation is constrained by retrieval results.
@@ -484,6 +498,15 @@ How it works internally:
 - [frontend/src/App.jsx](frontend/src/App.jsx) composes the page.
 - [frontend/src/components/Upload.jsx](frontend/src/components/Upload.jsx) handles uploads.
 - [frontend/src/components/Chat.jsx](frontend/src/components/Chat.jsx) handles questions.
+
+### Retrieval diversity
+
+What it does:
+Avoids returning multiple near-identical source snippets from the same page.
+
+How it works internally:
+- [app/services/retrieval_service.py](app/services/retrieval_service.py) suppresses near-duplicate passages after reranking.
+- The UI still shows the page and source for each distinct supporting chunk.
 
 ## 8. Algorithms / Models Used
 

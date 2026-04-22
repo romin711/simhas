@@ -68,6 +68,7 @@ export default function Upload() {
           </button>
         </div>
       )}
+      {loading && <div style={styles.loadingHint}>Uploading and indexing document...</div>}
       {status && <div style={styles.success}>{status}</div>}
       {error && <div style={styles.error}>{error}</div>}
     </div>
@@ -156,6 +157,15 @@ const styles = {
     fontWeight: 700,
     cursor: "pointer",
     padding: 0,
+  },
+  loadingHint: {
+    marginTop: 14,
+    padding: "10px 12px",
+    borderRadius: 12,
+    background: "#eef3f7",
+    color: "#45525e",
+    fontSize: 13,
+    fontWeight: 600,
   },
   success: {
     marginTop: 14,

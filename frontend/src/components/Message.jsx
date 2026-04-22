@@ -34,6 +34,12 @@ export default function Message({ message }) {
           </div>
         )}
 
+        {!isUser && weakEvidence && sourceCount > 0 && (
+          <div style={styles.warningBox}>
+            The answer was generated from weak evidence. Review the source passages before relying on it.
+          </div>
+        )}
+
         {!isUser && sourceCount > 0 && (
           <div style={styles.sources}>
             <div style={styles.sourcesHeader}>
@@ -43,8 +49,11 @@ export default function Message({ message }) {
             {message.sources.map((s, i) => (
               <details key={i} style={styles.source}>
                 <summary style={styles.sourceSummary}>
-                  <span style={styles.sourceFile}>{s.source}</span>
-                  <span style={styles.sourcePage}>p. {s.page}</span>
+                  <span style={styles.sourceInfo}>
+                    <span style={styles.sourceFile}>{s.source}</span>
+                    <span style={styles.sourcePage}>p. {s.page}</span>
+                  </span>
+                  <span style={styles.sourceIndex}>#{i + 1}</span>
                 </summary>
                 <p style={styles.sourceText}>{s.text}</p>
               </details>
@@ -100,7 +109,9 @@ const styles = {
   sourcesCount: { padding: "2px 8px", borderRadius: 999, background: "#eef3f7", color: "#50606d", fontSize: 11, fontWeight: 700 },
   source:       { marginBottom: 8, padding: "8px 10px", borderRadius: 14, background: "#f8fafc", border: "1px solid #edf1f4" },
   sourceSummary: { cursor: "pointer", listStyle: "none", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  sourceInfo: { display: "flex", alignItems: "center", gap: 8, minWidth: 0 },
   sourceFile:   { fontWeight: 700, fontSize: 12, color: "#32404a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   sourcePage:   { fontSize: 11, color: "#7a8791", whiteSpace: "nowrap", fontWeight: 700, textTransform: "uppercase" },
+  sourceIndex: { fontSize: 11, color: "#53606b", fontWeight: 700 },
   sourceText:   { margin: "8px 0 0", fontSize: 12, color: "#596773", lineHeight: 1.6 },
 };

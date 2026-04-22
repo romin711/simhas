@@ -71,7 +71,7 @@ This directly improves groundedness and source traceability.
 - Uses FAISS `IndexFlatL2` as an in-process vector index.
 - Embeddings are L2-normalized before insert/search.
 - Metadata (`text`, `source`, `page`) is stored separately in `chunks.pkl`.
-- Retrieval now keeps a candidate pool, reranks chunks with a lightweight lexical signal, and filters weak matches with a minimum relevance threshold.
+- Retrieval now keeps a candidate pool, reranks chunks with a lightweight lexical signal, filters weak matches with a minimum relevance threshold, and suppresses near-duplicate passages from the same source page.
 
 ### 3.4 Source-Grounded Answering
 - Retrieved chunks are passed into a strict prompt.
@@ -156,7 +156,12 @@ It intentionally trades distributed scalability for simplicity and local reliabi
 - CORS is fully open (`allow_origins=["*"]`), acceptable for dev but risky for hardened deployments.
 
 ### UX State
-- Chat history is intentionally cleared on browser reload so users always start from a clean conversation.
+- Chat history persists for the current browser session and resets when the session ends.
+
+## 7.1 Operational Notes
+
+- Retrieval metadata now reflects candidate filtering, reranking, thresholding, and duplicate suppression for more useful source previews.
+- A lightweight evaluation harness is available in `app/services/evaluation_service.py` with fixture cases under `tests/fixtures/`.
 
 ## 8. If You Want to Describe It in One Line
 

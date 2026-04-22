@@ -2,12 +2,33 @@ import { useEffect, useRef, useState } from "react";
 import { queryRAG } from "../api";
 import Message from "./Message";
 
+const SESSION_KEY = "simhas-chat-history";
+
 export default function Chat() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const bottomRef = useRef(null);
+
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(SESSION_KEY);
+      if (saved) {
+        setMessages(JSON.parse(saved));
+      }
+    } catch {
+      sessionStorage.removeItem(SESSION_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify(messages));
+    } catch {
+      // Session storage can be unavailable in some private browsing modes.
+    }
+  }, [messages]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
