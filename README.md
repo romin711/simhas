@@ -1,11 +1,96 @@
-# Simhas 
+# Simhas
 
-A persistent, source-aware Retrieval Augmented Generation (RAG) chatbot.
+A persistent, source-aware Retrieval Augmented Generation (RAG) chatbot.  
 Upload PDF documents and ask questions about them using semantic search and a local LLM.
+
+![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?logo=node.js&logoColor=white)
+![FastAPI](https://img.shields.io/badge/API-FastAPI-009688?logo=fastapi&logoColor=white)
+![Frontend](https://img.shields.io/badge/Frontend-React%20%2B%20Vite-61DAFB?logo=react&logoColor=white)
+![LLM](https://img.shields.io/badge/LLM-Ollama-local)
+
+---
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Architecture](#architecture)
+- [Project Structure](#project-structure)
+- [Features](#features)
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Running the App](#running-the-app)
+- [API Reference](#api-reference)
+- [Configuration](#configuration)
+- [How Persistence Works](#how-persistence-works)
+- [UX Behavior](#ux-behavior)
+- [Evaluation](#evaluation)
+- [Error Reference](#error-reference)
+- [Tech Stack](#tech-stack)
+- [License](#license)
+
+---
+
+## Overview
+
+Simhas is built for source-grounded question answering over uploaded PDFs.
+
+- Ingests text-based PDFs
+- Chunks and embeds content for semantic retrieval
+- Answers with local LLM inference
+- Returns source-aware citations (file and page)
+- Persists retrieval state across restarts
+
+---
+
+## Architecture
+
+### System Workflow
+
+```mermaid
+flowchart TD
+  U[User] --> FE[React Frontend]
+  FE --> API[FastAPI Backend]
+
+  API --> UP[POST /upload]
+  UP --> PDF[PDF text extraction]
+  PDF --> CH[Chunking]
+  CH --> EMB[Sentence-transformers embeddings]
+  EMB --> VS[FAISS vector store]
+  VS --> PERSIST[data/faiss.index + data/chunks.pkl]
+
+  API --> Q[POST /query]
+  Q --> QEMB[Embed query]
+  QEMB --> SEARCH[Semantic search + reranking]
+  SEARCH --> LLM[Ollama local LLM]
+  LLM --> RESP[Answer + sources + meta]
+  RESP --> FE
+```
+
+### Query Interaction
+
+```mermaid
+sequenceDiagram
+  participant User
+  participant Frontend
+  participant Backend
+  participant Store as FAISS + chunks
+  participant Ollama
+
+  User->>Frontend: Ask question
+  Frontend->>Backend: POST /query { question }
+  Backend->>Store: Retrieve candidates + rerank
+  Store-->>Backend: Relevant chunks
+  Backend->>Ollama: Generate grounded answer
+  Ollama-->>Backend: Answer text
+  Backend-->>Frontend: answer + sources + meta
+```
+
+---
 
 ## Project Structure
 
-```
+```text
 simhas/
 │
 ├── app/
@@ -48,15 +133,21 @@ simhas/
 └── README.md
 ```
 
+---
+
 ## Features
 
-- **PDF Upload** — Extract and chunk text from any text-based PDF
-- **Semantic Search** — FAISS vector store with sentence-transformers embeddings
-- **Source-Aware Answers** — Every answer shows which file and page it came from
-- **Retrieval Confidence** — Responses include confidence and evidence metadata
-- **Persistent Storage** — Vector index and chunks survive server restarts
-- **Offline LLM** — Runs entirely locally via Ollama (no API keys needed)
-- **React Frontend** — Clean chat UI built with Vite + React, with chat history preserved for the current browser session
+| Feature | Description |
+|---|---|
+| PDF Upload | Extract and chunk text from any text-based PDF |
+| Semantic Search | FAISS vector store with sentence-transformers embeddings |
+| Source-Aware Answers | Every answer shows which file and page it came from |
+| Retrieval Confidence | Responses include confidence and evidence metadata |
+| Persistent Storage | Vector index and chunks survive server restarts |
+| Offline LLM | Runs entirely locally via Ollama (no API keys needed) |
+| React Frontend | Clean chat UI built with Vite + React, with chat history preserved for the current browser session |
+
+---
 
 ## Prerequisites
 
@@ -64,9 +155,11 @@ simhas/
 - Node.js 18+
 - [Ollama](https://ollama.ai) installed locally
 
+---
+
 ## Installation
 
-### 1. Clone and set up Python environment
+### 1) Clone and set up Python environment
 
 ```bash
 cd simhas
@@ -74,7 +167,7 @@ python -m venv venv
 source venv/bin/activate        # Windows: venv\Scripts\activate
 ```
 
-### 2. Install CPU-only dependencies
+### 2) Install CPU-only dependencies
 
 ```bash
 # Install CPU-only PyTorch first (prevents GPU packages downloading)
@@ -84,7 +177,7 @@ pip install torch --index-url https://download.pytorch.org/whl/cpu
 pip install -r requirements.txt
 ```
 
-### 3. Set up Ollama
+### 3) Set up Ollama
 
 ```bash
 # Pull the model
@@ -94,41 +187,51 @@ ollama pull tinyllama
 ollama serve
 ```
 
-### 4. Install frontend dependencies
+### 4) Install frontend dependencies
 
 ```bash
 cd frontend
 npm install
 ```
 
+---
+
 ## Running the App
 
 You need two terminals running simultaneously.
 
-**Terminal 1 — Backend:**
+### Terminal 1 - Backend
+
 ```bash
 cd simhas
 source venv/bin/activate
 uvicorn app.main:app --reload
 ```
-Backend runs at: `http://127.0.0.1:8000`
+
+Backend runs at: `http://127.0.0.1:8000`  
 API docs at: `http://127.0.0.1:8000/docs`
 
-**Terminal 2 — Frontend:**
+### Terminal 2 - Frontend
+
 ```bash
 cd simhas/frontend
 npm start
 ```
-Frontend runs at the Vite dev server URL shown in the terminal
+
+Frontend runs at the Vite dev server URL shown in the terminal.
+
+---
 
 ## API Reference
 
-### POST /upload
+### `POST /upload`
+
 Upload a PDF file.
 
 **Request:** `multipart/form-data` with field `file`
 
 **Response:**
+
 ```json
 {
   "status": "ok",
@@ -136,15 +239,18 @@ Upload a PDF file.
 }
 ```
 
-### POST /query
+### `POST /query`
+
 Ask a question about uploaded documents.
 
 **Request:**
+
 ```json
 { "question": "What are the key findings?" }
 ```
 
 **Response:**
+
 ```json
 {
   "answer": "The key findings are...",
@@ -164,12 +270,15 @@ Ask a question about uploaded documents.
 }
 ```
 
-Notes:
+### Notes
+
 - `meta.top_score` is the highest retrieval score before thresholding.
 - `meta.retrieved_chunks` is the number of chunks that passed the relevance threshold.
 - `meta.candidate_chunks` is the number of FAISS candidates considered before reranking.
 - `meta.weak_evidence` is true when no chunk passed the relevance threshold.
 - Retrieved sources are filtered to avoid showing near-duplicate passages from the same page.
+
+---
 
 ## Configuration
 
@@ -190,6 +299,7 @@ All settings are in `app/core/config.py` and can be overridden with environment 
 | `SIMHAS_RERANK_LEXICAL_WEIGHT` | `0.2` | Lexical overlap weight in hybrid rerank score (semantic weight is `1 - lexical`) |
 
 Example overrides:
+
 ```bash
 export SIMHAS_OLLAMA_MODEL="mistral"
 export SIMHAS_TOP_K="5"
@@ -200,23 +310,30 @@ export SIMHAS_RERANK_LEXICAL_WEIGHT="0.25"
 ```
 
 To change the LLM model in Ollama, pull the model first:
+
 ```bash
 ollama pull mistral
 ```
 
+---
+
 ## How Persistence Works
 
 On every `/upload`:
-- `data/faiss.index` — FAISS index written to disk
-- `data/chunks.pkl` — Chunk metadata (text, source, page) pickled to disk
+- `data/faiss.index` - FAISS index written to disk
+- `data/chunks.pkl` - Chunk metadata (text, source, page) pickled to disk
 
 On server startup:
 - Both files are loaded automatically
 - If files don't exist, server starts with an empty store (no errors)
 
+---
+
 ## UX Behavior
 
 - Chat history persists across browser reloads within the same browser session and resets when the session ends.
+
+---
 
 ## Evaluation
 
@@ -228,6 +345,8 @@ python -m app.services.evaluation_service tests/fixtures/eval_cases.json
 
 The output includes source-match rate, weak-evidence rate, and average retrieval scores.
 
+---
+
 ## Error Reference
 
 | Error | Cause | Fix |
@@ -237,6 +356,8 @@ The output includes source-match rate, weak-evidence rate, and average retrieval
 | `No documents uploaded yet` | Query before upload | Upload a PDF first |
 | `Connection refused` (Ollama) | Ollama not running | Run `ollama serve` |
 | `nvidia_cublas downloading` | Wrong torch build | Install CPU torch first (see step 2) |
+
+---
 
 ## Tech Stack
 
@@ -248,6 +369,8 @@ The output includes source-match rate, weak-evidence rate, and average retrieval
 | Vector Store | FAISS (CPU) |
 | LLM | Ollama (`tinyllama`) |
 | Frontend | React 18 + Vite 7 |
+
+---
 
 ## License
 
