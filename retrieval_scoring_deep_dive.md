@@ -137,7 +137,7 @@ $$
 $$
 
 $$
-\text{lexical\_score} = \frac{2 \cdot \text{precision} \cdot \text{recall}}{\text{precision} + \text{recall}}
+L = \frac{2 \cdot \text{precision} \cdot \text{recall}}{\text{precision} + \text{recall}}
 $$
 
 Where:
@@ -158,14 +158,19 @@ Where:
 Candidate is kept only if:
 
 $$
-\text{rerank\_score} \ge \text{MIN\_RELEVANCE\_SCORE}
+s_r \ge s_{\min}
 $$
 
 and
 
 $$
-\text{semantic\_score} \ge 0.7 \cdot \text{MIN\_RELEVANCE\_SCORE}
+s_{\text{semantic}} \ge 0.7 \cdot s_{\min}
 $$
+
+Where:
+- $s_r$ = rerank score
+- $s_{\text{semantic}}$ = semantic similarity score
+- $s_{\min}$ = minimum relevance threshold
 
 This avoids selecting lexically matched but semantically irrelevant chunks.
 
