@@ -3,19 +3,24 @@ import { queryRAG } from "../api";
 import Message from "./Message";
 
 const SESSION_KEY = "simhas-chat-history";
+const NOT_IMPLEMENTED_TEXT = "Feature is not implemented yet";
 
-export default function Chat() {
+const nextId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+export default function Chat({ onSelectAnswer }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [notice, setNotice] = useState(null);
+  const [activeAnswerId, setActiveAnswerId] = useState(null);
   const bottomRef = useRef(null);
 
   useEffect(() => {
     try {
       const saved = sessionStorage.getItem(SESSION_KEY);
       if (saved) {
-        setMessages(JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        setMessages(Array.isArray(parsed) ? parsed : []);
       }
     } catch {
       sessionStorage.removeItem(SESSION_KEY);
@@ -34,23 +39,38 @@ export default function Chat() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
+  const selectAnswer = (message) => {
+    if (message.role !== "assistant") return;
+    setActiveAnswerId(message.id);
+    onSelectAnswer?.(message);
+  };
+
   const send = async () => {
     const question = input.trim();
     if (!question || loading) return;
 
     setInput("");
-    setError(null);
-    setMessages((prev) => [...prev, { role: "user", content: question }]);
+    setNotice(null);
+    const questionMessage = { id: nextId(), role: "user", content: question };
+    setMessages((prev) => [...prev, questionMessage]);
     setLoading(true);
 
     try {
       const data = await queryRAG(question);
+      const answerMessage = {
+        id: nextId(),
+        role: "assistant",
+        content: data.answer || NOT_IMPLEMENTED_TEXT,
+        sources: Array.isArray(data.sources) ? data.sources : null,
+        meta: data.meta || null,
+      };
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: data.answer, sources: data.sources, meta: data.meta },
+        answerMessage,
       ]);
-    } catch (e) {
-      setError(e.message);
+      selectAnswer(answerMessage);
+    } catch {
+      setNotice("Request failed. Please try again. If this feature is unavailable, Feature is not implemented yet");
     } finally {
       setLoading(false);
     }
@@ -64,156 +84,66 @@ export default function Chat() {
   };
 
   return (
-    <div style={styles.container}>
-      <div style={styles.headerRow}>
+    <section>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, marginBottom: 12 }}>
         <div>
-          <h2 style={styles.heading}>Chat</h2>
-          <p style={styles.helper}>Ask about the uploaded documents and get source-backed answers.</p>
+          <h2 className="section-title">Research Thread</h2>
+          <p className="section-text">Ask precise questions and inspect answers as structured evidence cards.</p>
         </div>
-        <div style={styles.metaPill}>{messages.length} messages</div>
+        <div className="workspace-kicker">{messages.length} entries</div>
       </div>
 
-      <div style={styles.messageArea}>
+      <div className="workspace-thread">
         {messages.length === 0 && (
-          <div style={styles.emptyCard}>
-            <div style={styles.emptyTitle}>Ready when you are</div>
-            <p style={styles.emptyText}>
-              Upload a PDF, then ask something specific like “What are the deadlines?” or “Summarize the findings.”
-            </p>
-            <div style={styles.emptyHints}>
-              <span style={styles.emptyHint}>Fast retrieval</span>
-              <span style={styles.emptyHint}>Page-level citations</span>
-              <span style={styles.emptyHint}>Local inference</span>
-            </div>
+          <div className="thread-empty">
+            <h3 style={{ margin: 0 }}>Ready for your first query</h3>
+            <p className="section-text">Try asking for findings, obligations, dates, limitations, or implementation details from uploaded PDFs.</p>
           </div>
         )}
-        {messages.map((msg, i) => (
-          <Message key={i} message={msg} />
+
+        {messages.map((message) => (
+          <Message
+            key={message.id}
+            message={message}
+            isActive={activeAnswerId === message.id}
+            onSelect={selectAnswer}
+          />
         ))}
+
         {loading && (
-          <div style={styles.loadingRow}>
-            <div style={{ ...styles.bubble, ...styles.botBubble }}>
-              <div style={styles.typingDots}>
-                <span style={styles.typingDot} />
-                <span style={styles.typingDot} />
-                <span style={styles.typingDot} />
-              </div>
-            </div>
+          <div className="thinking" aria-live="polite">
+            <div style={{ marginBottom: 8, fontSize: "0.86rem", color: "#6a5f50" }}>Analyzing documents and composing answer...</div>
+            <div className="thinking-bar" />
+            <div className="thinking-bar" style={{ marginTop: 7, width: "80%" }} />
+            <div className="thinking-bar" style={{ marginTop: 7, width: "62%" }} />
           </div>
         )}
-        {error && <div style={styles.error}>{error}</div>}
+
+        {notice && <div className="notice notice-error">{notice}</div>}
+
         <div ref={bottomRef} />
       </div>
 
-      <div style={styles.inputRow}>
+      <div className="ask-shell">
+        <div className="ask-label">Ask Workspace</div>
         <textarea
-          style={styles.input}
-          rows={2}
-          placeholder="Ask a question about the uploaded PDF..."
+          className="ask-input"
+          rows={3}
+          placeholder="Ask about the current document set..."
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKey}
           disabled={loading}
         />
-        <button
-          style={{ ...styles.button, opacity: loading || !input.trim() ? 0.5 : 1 }}
-          onClick={send}
-          disabled={loading || !input.trim()}
-        >
-          Send
-        </button>
+        <div className="ask-actions">
+          <span className="section-text" style={{ margin: 0 }}>
+            Press Enter to send, Shift + Enter for newline
+          </span>
+          <button className="btn btn-primary" onClick={send} disabled={loading || !input.trim()}>
+            {loading ? "Working..." : "Ask"}
+          </button>
+        </div>
       </div>
-    </div>
+    </section>
   );
 }
-
-const styles = {
-  container: {
-    background: "rgba(255,255,255,0.78)",
-    borderRadius: 24,
-    padding: "24px 28px",
-    boxShadow: "0 18px 50px rgba(16, 24, 40, 0.08)",
-    border: "1px solid rgba(30,30,30,0.08)",
-    backdropFilter: "blur(14px)",
-  },
-  headerRow: { display: "flex", justifyContent: "space-between", gap: 16, alignItems: "start", marginBottom: 16 },
-  heading: { margin: 0, fontSize: 18, fontWeight: 800, color: "#111" },
-  helper: { margin: "6px 0 0", fontSize: 13, color: "#5f6b75", lineHeight: 1.5 },
-  metaPill: {
-    flexShrink: 0,
-    padding: "7px 12px",
-    borderRadius: 999,
-    background: "#eef3f7",
-    color: "#45525e",
-    fontSize: 12,
-    fontWeight: 700,
-  },
-  messageArea: { minHeight: 340, maxHeight: 520, overflowY: "auto", marginBottom: 16, paddingRight: 4 },
-  emptyCard: {
-    marginTop: 16,
-    padding: 20,
-    borderRadius: 20,
-    border: "1px solid rgba(30,30,30,0.08)",
-    background: "linear-gradient(180deg, rgba(248,250,252,0.9) 0%, rgba(240,244,248,0.9) 100%)",
-  },
-  emptyTitle: { fontSize: 16, fontWeight: 800, color: "#1a2430" },
-  emptyText: { margin: "8px 0 14px", fontSize: 14, lineHeight: 1.6, color: "#55626d" },
-  emptyHints: { display: "flex", flexWrap: "wrap", gap: 8 },
-  emptyHint: {
-    padding: "7px 10px",
-    borderRadius: 999,
-    background: "#fff",
-    border: "1px solid rgba(30,30,30,0.08)",
-    color: "#55626d",
-    fontSize: 12,
-    fontWeight: 600,
-  },
-  inputRow: { display: "flex", gap: 12, alignItems: "stretch" },
-  input: {
-    flex: 1,
-    minHeight: 52,
-    padding: "13px 14px",
-    border: "1px solid rgba(30,30,30,0.14)",
-    borderRadius: 18,
-    fontSize: 14,
-    outline: "none",
-    fontFamily: "inherit",
-    resize: "vertical",
-    background: "rgba(255,255,255,0.92)",
-  },
-  button: {
-    padding: "12px 22px",
-    background: "linear-gradient(135deg, #17212b 0%, #2d3a45 100%)",
-    color: "#fff",
-    border: "none",
-    borderRadius: 16,
-    fontSize: 14,
-    cursor: "pointer",
-    fontWeight: 700,
-    boxShadow: "0 10px 20px rgba(23, 33, 43, 0.14)",
-  },
-  loadingRow: { display: "flex", marginBottom: 14 },
-  typingDots: {
-    display: "flex",
-    alignItems: "center",
-    gap: 6,
-    minHeight: 18,
-  },
-  typingDot: {
-    width: 8,
-    height: 8,
-    borderRadius: "50%",
-    background: "#9aa5af",
-  },
-  error: {
-    margin: "8px 0 0",
-    padding: "10px 12px",
-    borderRadius: 12,
-    background: "#fdecec",
-    color: "#a11e1e",
-    fontSize: 13,
-    fontWeight: 600,
-  },
-  bubble: { maxWidth: "78%", padding: "12px 16px", borderRadius: 18 },
-  botBubble: { background: "#fff", border: "1px solid #e0e0e0", borderBottomLeftRadius: 4 },
-};

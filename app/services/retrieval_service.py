@@ -10,8 +10,19 @@ from app.core.config import (
 )
 
 
+_STOPWORDS = {
+    "a", "an", "and", "are", "as", "at", "be", "but", "by", "for", "from", "how", "if", "in",
+    "into", "is", "it", "its", "of", "on", "or", "that", "the", "their", "there", "these", "this",
+    "to", "was", "were", "what", "when", "where", "which", "who", "why", "with",
+}
+
+
 def _tokenize(text: str) -> set[str]:
-    return {t for t in re.findall(r"\w+", text.lower()) if len(t) > 2}
+    return {
+        token
+        for token in re.findall(r"\w+", text.lower())
+        if len(token) > 2 and token not in _STOPWORDS
+    }
 
 
 def _lexical_overlap_score(question_terms: set[str], chunk_text: str) -> float:
@@ -20,7 +31,18 @@ def _lexical_overlap_score(question_terms: set[str], chunk_text: str) -> float:
     chunk_terms = _tokenize(chunk_text)
     if not chunk_terms:
         return 0.0
-    return len(question_terms.intersection(chunk_terms)) / len(question_terms)
+
+    overlap = len(question_terms.intersection(chunk_terms))
+    if overlap == 0:
+        return 0.0
+
+    # F1-style overlap balances query recall and chunk precision better than plain recall.
+    recall = overlap / len(question_terms)
+    precision = overlap / len(chunk_terms)
+    if precision + recall == 0:
+        return 0.0
+
+    return 2 * precision * recall / (precision + recall)
 
 
 def _is_near_duplicate(candidate: dict, selected: list[dict]) -> bool:
@@ -54,7 +76,8 @@ def _hybrid_rerank(question: str, scored_chunks: list[dict]) -> list[dict]:
 
 
 def retrieve(question: str) -> dict:
-    q_embedding = embed_query(question)
+    normalized_question = " ".join(question.split())
+    q_embedding = embed_query(normalized_question)
     candidate_k = max(TOP_K, RETRIEVAL_CANDIDATE_K)
     scored_chunks = vector_store.search_with_scores(q_embedding, k=candidate_k)
 
@@ -73,8 +96,14 @@ def retrieve(question: str) -> dict:
         }
 
     top_score = max(c["score"] for c in scored_chunks)
-    reranked_chunks = _hybrid_rerank(question, scored_chunks)
-    thresholded_chunks = [c for c in reranked_chunks if c["score"] >= MIN_RELEVANCE_SCORE]
+    reranked_chunks = _hybrid_rerank(normalized_question, scored_chunks)
+    semantic_floor = max(0.0, MIN_RELEVANCE_SCORE * 0.7)
+
+    thresholded_chunks = [
+        c
+        for c in reranked_chunks
+        if c["rerank_score"] >= MIN_RELEVANCE_SCORE and c["score"] >= semantic_floor
+    ]
 
     passed_chunks = []
     for chunk in thresholded_chunks:

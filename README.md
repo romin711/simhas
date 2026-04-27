@@ -292,9 +292,9 @@ All settings are in `app/core/config.py` and can be overridden with environment 
 | `SIMHAS_OLLAMA_URL` | `http://localhost:11434/api/generate` | Ollama generate endpoint |
 | `SIMHAS_OLLAMA_MODEL` | `tinyllama` | Ollama model name |
 | `SIMHAS_TOP_K` | `3` | Number of chunks retrieved per query |
-| `SIMHAS_RETRIEVAL_CANDIDATE_K` | `12` | Number of FAISS candidates before reranking |
-| `SIMHAS_CHUNK_SIZE` | `150` | Words per chunk |
-| `SIMHAS_CHUNK_OVERLAP` | `50` | Overlapping words between chunks |
+| `SIMHAS_RETRIEVAL_CANDIDATE_K` | `16` | Number of FAISS candidates before reranking |
+| `SIMHAS_CHUNK_SIZE` | `120` | Words per chunk |
+| `SIMHAS_CHUNK_OVERLAP` | `40` | Overlapping words between chunks |
 | `SIMHAS_MIN_RELEVANCE_SCORE` | `0.2` | Minimum chunk relevance to be used in answer generation |
 | `SIMHAS_RERANK_LEXICAL_WEIGHT` | `0.2` | Lexical overlap weight in hybrid rerank score (semantic weight is `1 - lexical`) |
 
